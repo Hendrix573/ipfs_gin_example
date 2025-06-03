@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Directory Listing for {{.Path}}</title>
+<style>
+body { font-family: sans-serif; }
+table { border-collapse: collapse; width: 80%; margin: 20px auto; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background-color: #f2f2f2; }
+tr:nth-child(even) { background-color: #f9f9f9; }
+a { text-decoration: none; color: #0066cc; }
+a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<h1>Directory Listing for {{.Path}}</h1>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>CID</th>
+<th>Size</th>
+</tr>
+</thead>
+<tbody>
+{{range .Links}}
+<tr>
+<td><a href="./{{.Name}}">{{.Name}}</a></td>
+<td>{{.Hash}}</td>
+<td>{{.Size}} bytes</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</body>
+</html>
