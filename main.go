@@ -3,6 +3,7 @@ package main
 import (
 	"html/template"
 	"log"
+	"net/http" // Import http for status codes
 
 	"ipfs-gin-example/config"
 	"ipfs-gin-example/pkg/api"
@@ -25,7 +26,7 @@ func main() {
 
 	// Initialize Resolver
 	mockResolver := resolver.NewResolver()
-	log.Println("Mock resolver initialized with hardcoded domains.")
+	log.Println("Mock resolver initialized. Mappings are in-memory and not persistent.")
 
 	// Initialize API Handlers
 	handlers := api.NewHandlers(store, cfg.ChunkSize, mockResolver)
@@ -36,18 +37,34 @@ func main() {
 	// Load HTML templates for directory listing
 	tmpl, err := template.ParseFiles("templates/directory_listing.tmpl")
 	if err != nil {
-		log.Fatalf("Failed to load template: %v", err)
+		// Handle the case where the template file is missing more gracefully
+		log.Printf("Warning: Failed to load template 'templates/directory_listing.tmpl': %v. Directory listing will not work.", err)
+		// Set a dummy template to prevent panic if directory listing is attempted
+		router.SetHTMLTemplate(template.Must(template.New("dummy").Parse("<h1>Directory Listing Not Available</h1>")))
+
+	} else {
+		router.SetHTMLTemplate(tmpl)
 	}
-	router.SetHTMLTemplate(tmpl)
 
 	// Define routes
+
+	// Basic Uploads (return CID of content)
 	router.POST("/upload", handlers.UploadHandler)
 	router.POST("/upload/multipart", handlers.MultipartUploadHandler)
 	router.POST("/upload/dag", handlers.DAGUploadHandler)
 
+	// Put content at a specific path under a domain (updates domain's root CID)
+	// PUT /:domain/*path
+	router.PUT("/:domain/*path", handlers.PutHandler)
+
 	// Download route with domain and path parameters
 	// The /*path parameter captures everything after /:domain/
 	router.GET("/:domain/*path", handlers.DownloadHandler)
+
+	// Add a root route or health check
+	router.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "IPFS-like Gin Example Server is running!")
+	})
 
 	// Run the server
 	log.Printf("Server starting on port %s", cfg.ServerPort)
