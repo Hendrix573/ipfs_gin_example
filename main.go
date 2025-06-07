@@ -3,17 +3,20 @@ package main
 import (
 	"html/template"
 	"log"
-	"net/http" // Import http for status codes
+	"net/http"
 
 	"ipfs-gin-example/config"
 	"ipfs-gin-example/pkg/api"
+	"ipfs-gin-example/pkg/contract"
 	"ipfs-gin-example/pkg/resolver"
 	"ipfs-gin-example/pkg/storage"
 
 	"github.com/gin-gonic/gin"
 )
 
+// main initializes and starts the IPFS-like server.
 func main() {
+	// Load configuration
 	cfg := config.LoadConfig()
 
 	// Initialize BadgerDB storage
@@ -24,45 +27,53 @@ func main() {
 	defer store.Close()
 	log.Printf("BadgerDB initialized at %s", cfg.BadgerDBPath)
 
-	// Initialize Resolver
-	mockResolver := resolver.NewResolver()
-	log.Println("Mock resolver initialized. Mappings are in-memory and not persistent.")
+	// Validate contract address
+	if cfg.ContractAddress == "" {
+		log.Fatal("CONTRACT_ADDRESS is required for smart contract interaction")
+	}
+
+	// Initialize smart contract client
+	contractClient, err := contract.NewClient(cfg.EthereumRPC, cfg.ContractAddress)
+	if err != nil {
+		log.Fatalf("Failed to initialize contract client: %v", err)
+	}
+	defer contractClient.Close()
+	log.Printf("Smart contract client initialized for address %s", cfg.ContractAddress)
+
+	// Initialize Resolver with contract client
+	resolver := resolver.NewResolver(contractClient)
+	log.Println("Resolver initialized with smart contract client and LRU cache.")
 
 	// Initialize API Handlers
-	handlers := api.NewHandlers(store, cfg.ChunkSize, mockResolver)
+	uploadHandler := api.NewUploadHandler(store, cfg.ChunkSize, resolver, cfg)
+	downloadHandler := api.NewDownloadHandler(store, resolver)
 
 	// Setup Gin router
+	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 
 	// Load HTML templates for directory listing
 	tmpl, err := template.ParseFiles("templates/directory_listing.tmpl")
 	if err != nil {
-		// Handle the case where the template file is missing more gracefully
-		log.Printf("Warning: Failed to load template 'templates/directory_listing.tmpl': %v. Directory listing will not work.", err)
-		// Set a dummy template to prevent panic if directory listing is attempted
+		log.Printf("Error: Failed to load template 'templates/directory_listing.tmpl': %v. Directory listing will not work.", err)
 		router.SetHTMLTemplate(template.Must(template.New("dummy").Parse("<h1>Directory Listing Not Available</h1>")))
-
 	} else {
 		router.SetHTMLTemplate(tmpl)
 	}
 
-	// Define routes
-
-	// Basic Uploads (return CID of content)
-	router.POST("/upload", handlers.UploadHandler)
-	router.POST("/upload/multipart", handlers.MultipartUploadHandler)
-	router.POST("/upload/dag", handlers.DAGUploadHandler)
-
-	// Put content at a specific path under a domain (updates domain's root CID)
-	// PUT /:domain/*path
-	router.PUT("/:domain/*path", handlers.PutHandler)
-
-	// Download route with domain and path parameters
-	// The /*path parameter captures everything after /:domain/
-	router.GET("/:domain/*path", handlers.DownloadHandler)
-
-	// Add a root route or health check
+	// Serve static files (frontend)
+	router.Static("/static", "./static")
 	router.GET("/", func(c *gin.Context) {
+		c.File("./static/index.html")
+	})
+
+	// Define API routes
+	apiGroup := router.Group("/api")
+	{
+		uploadHandler.RegisterRoutes(apiGroup)
+		downloadHandler.RegisterRoutes(apiGroup)
+	}
+	router.GET("/health", func(c *gin.Context) {
 		c.String(http.StatusOK, "IPFS-like Gin Example Server is running!")
 	})
 
