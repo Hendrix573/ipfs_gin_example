@@ -10,6 +10,12 @@ go get github.com/mitchellh/go-homedir # For database path
 ## 启动
 
 ```
+启动ganache
+使用truffle部署智能合约
+设置以下环境变量
+set CONTRACT_ADDRESS=0xYourContractAddress
+set PRIVATE_KEY=0xYourPrivateKey
+set CHAIN_ID=1337
 go编译运行
 go build
 go run main.go
