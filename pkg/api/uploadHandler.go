@@ -273,7 +273,9 @@ func (h *UploadHandler) PutHandler(c *gin.Context) {
 	}
 
 	contentRootCID, contentSize, err := h.DAGBuilder.BuildDAGFromLeaves(leaves)
-	// TODO add cache for contentCid here
+	// add to cache
+	h.Resolver.AddCache(domain, path, contentRootCID)
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to build DAG: %v", err)})
 		return

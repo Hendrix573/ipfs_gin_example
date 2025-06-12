@@ -36,17 +36,21 @@ func (h *DownloadHandler) DownloadHandler(c *gin.Context) {
 	domain := c.Param("domain")
 	path := c.Param("path")
 
-	rootCID, err := h.Resolver.ResolveDomain(domain)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Failed to resolve CID for %s: %v", domain, err)})
-		return
-	}
+	// check cache
+	targetNodeCID, ok := h.Resolver.GetCache(domain, path)
+	if !ok {
+		rootCID, err := h.Resolver.ResolveDomain(domain)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Failed to resolve CID for %s: %v", domain, err)})
+			return
+		}
 
-	targetNodeCID, err := h.DAGBuilder.ResolvePath(rootCID, path)
-	if err != nil {
-		// Path not found or other resolution error
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Path '%s' not found under CID %s: %v", path, rootCID, err)})
-		return
+		targetNodeCID, err = h.DAGBuilder.ResolvePath(rootCID, path)
+		if err != nil {
+			// Path not found or other resolution error
+			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Path '%s' not found under CID %s: %v", path, rootCID, err)})
+			return
+		}
 	}
 
 	targetNode, err := h.DAGBuilder.GetNode(targetNodeCID)
