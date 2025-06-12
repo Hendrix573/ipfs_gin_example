@@ -62,14 +62,14 @@ func main() {
 		router.SetHTMLTemplate(tmpl)
 	}
 
-	// Serve static files (frontend)
-	router.Static("/static", "./static")
-	router.GET("/", func(c *gin.Context) {
-		c.File("./static/index.html")
-	})
+	//// Serve static files (frontend)
+	//router.Static("/static", "./static")
+	//router.GET("/", func(c *gin.Context) {
+	//	c.File("./static/index.html")
+	//})
 
 	// Define API routes
-	apiGroup := router.Group("/api")
+	apiGroup := router.Group("/")
 	{
 		registerHandler.RegisterRoutes(apiGroup)
 		uploadHandler.RegisterRoutes(apiGroup)
