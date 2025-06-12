@@ -33,7 +33,9 @@ func NewResolver(contractClient *contract.Client) *Resolver {
 }
 
 // ResolveDomain looks up the root CID for a given domain/path combination.
-func (r *Resolver) ResolveDomain(name string) (string, error) {
+func (r *Resolver) ResolveDomain(domain string) (string, error) {
+	// TODO name -> file content
+	name := domain
 	if name == "" {
 		return "", errors.New("domain name cannot be empty")
 	}
@@ -45,16 +47,16 @@ func (r *Resolver) ResolveDomain(name string) (string, error) {
 	}
 
 	log.Printf("Cache miss for name %s, querying contract", name)
-	cid, err := r.contractClient.ResolveCID(name)
+	cid, err := r.contractClient.ResolveCID(domain)
 	if err != nil {
 		return "", errors.New("failed to resolve CID: " + err.Error())
 	}
 	if cid == "" {
-		return "", errors.New("CID not found for name: " + name)
+		return "", nil
 	}
 
 	// Store in cache
-	r.cache.Add(name, cid)
+	//r.cache.Add(name, contentCid)
 	log.Printf("Cached name %s: %s", name, cid)
 	return cid, nil
 }
@@ -79,6 +81,7 @@ func (r *Resolver) UpdateMapping(auth *bind.TransactOpts, name, cid string) erro
 			return err
 		}
 	} else {
+		// TODO 没有domain直接注册方便测试，后续应该由合约控制
 		// Name does not exist, register it
 		err = r.contractClient.RegisterName(auth, name, cid)
 		if err != nil {

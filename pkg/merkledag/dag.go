@@ -244,51 +244,50 @@ func splitPath(path string) []string {
 }
 
 // GetFileData retrieves and concatenates data for a file node or a node linking to chunks
-func (b *DAGBuilder) GetFileData(fileNodeCID string) ([]byte, error) {
-	fileNode, err := b.GetNode(fileNodeCID)
+func (b *DAGBuilder) GetFileData(rootCID string) ([]byte, error) {
+	// Use a buffer to efficiently concatenate the data chunks
+	var contentBuffer bytes.Buffer
+
+	// Call the recursive helper function starting from the root
+	err := b.getFileContentRecursive(rootCID, &contentBuffer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get file node %s: %w", fileNodeCID, err)
+		return nil, fmt.Errorf("failed to get file content for CID %s: %w", rootCID, err)
 	}
 
-	if len(fileNode.Data) > 0 && len(fileNode.Links) == 0 {
-		// This is a single-chunk file node (or raw data node)
-		return fileNode.Data, nil
+	return contentBuffer.Bytes(), nil
+}
+
+// getFileContentRecursive is a helper function to recursively traverse the DAG
+// and write the content of leaf nodes to the buffer.
+func (b *DAGBuilder) getFileContentRecursive(cid string, buffer *bytes.Buffer) error {
+	// 1. Get the node from storage
+	node, err := b.GetNode(cid)
+	if err != nil {
+		return fmt.Errorf("could not retrieve node %s: %w", cid, err)
 	}
 
-	if len(fileNode.Links) == 0 && len(fileNode.Data) == 0 {
-		// Empty file?
-		return []byte{}, nil
-	}
-
-	// It's a file represented by multiple chunks linked from this node
-	var fileData bytes.Buffer
-	for _, link := range fileNode.Links {
-		// Ensure the link points to a data chunk node (node with Data, no Links)
-		chunkNode, err := b.GetNode(link.Hash)
+	// 2. Check if it's a leaf node (no links means it contains data)
+	if len(node.Links) == 0 {
+		// Found a leaf node, write its data to the buffer
+		_, err := buffer.Write(node.Data)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get chunk node %s: %w", link.Hash, err)
+			return fmt.Errorf("failed to write data for node %s: %w", cid, err)
 		}
-		if len(chunkNode.Data) == 0 || len(chunkNode.Links) > 0 {
-			// This linked node is not a simple data chunk. This might indicate a non-file node
-			// or a more complex file structure not handled here.
-			// For this simplified example, we expect file data nodes to link directly to chunks.
-			// If a link has a Name, it's likely a directory link. File chunks usually don't have names in links from the file root.
-			if link.Name != "" {
-				return nil, fmt.Errorf("linked node %s ('%s') is not a data chunk for file", link.Hash, link.Name)
-			}
-			// If no name, but not a data chunk node structure, still an issue
-			return nil, fmt.Errorf("linked node %s is not a data chunk (unexpected structure)", link.Hash)
-
-		}
-		fileData.Write(chunkNode.Data)
+		return nil // Base case: stop recursion
 	}
 
-	// Optional: Verify total size if link.Size was used to sum up
-	// if uint64(fileData.Len()) != b.calculateNodeSize(fileNode) {
-	// 	return nil, errors.New("file data size mismatch")
-	// }
+	// 3. If it's an intermediate node, recursively process its children
+	// Process links in order to maintain file content order
+	for _, link := range node.Links {
+		// Recursively call for the child node
+		err := b.getFileContentRecursive(link.Hash, buffer)
+		if err != nil {
+			// Propagate the error up
+			return err
+		}
+	}
 
-	return fileData.Bytes(), nil
+	return nil // Successfully processed all children
 }
 
 // ListDirectory lists the contents of a directory node

@@ -198,7 +198,7 @@ func (c *DecentralizedNamingSystem) ResolveCID(opts *bind.CallOpts, name string)
 	var out []interface{}
 	err := c.Call(opts, &out, "resolveCID", name)
 	if err != nil {
-		return "", err
+		return "error", err
 	}
 	return out[0].(string), nil
 }

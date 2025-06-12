@@ -272,13 +272,13 @@ func (h *UploadHandler) PutHandler(c *gin.Context) {
 		return
 	}
 
-	rootCID, size, err := h.DAGBuilder.BuildDAGFromLeaves(leaves)
+	contentRootCID, contentSize, err := h.DAGBuilder.BuildDAGFromLeaves(leaves)
+	// TODO add cache for contentCid here
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to build DAG: %v", err)})
 		return
 	}
 
-	name := domain + path
 	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(h.Config.PrivateKey, "0x"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Invalid private key: %v", err)})
@@ -290,12 +290,42 @@ func (h *UploadHandler) PutHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to prepare transaction: %v", err)})
 		return
 	}
-
-	err = h.Resolver.UpdateMapping(auth, name, rootCID)
+	// get domain cid
+	currentRootCID, err := h.Resolver.ResolveDomain(domain)
+	if currentRootCID == "" {
+		// If the domain doesn't exist or has no root CID, initialize it with an empty directory
+		emptyDirNode := &merkledag.Node{} // Represents an empty directory
+		var addErr error
+		currentRootCID, addErr = h.DAGBuilder.AddNode(emptyDirNode)
+		if addErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to initialize domain with empty directory: %v", addErr)})
+			return
+		}
+		err := h.Resolver.UpdateMapping(auth, domain, currentRootCID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to register/update CID: %v", err)})
+			return
+		}
+		// log.Printf("Initialized domain '%s' with root CID %s", domain, currentRootCID) // Optional logging
+	}
+	// 构建path的dag
+	newRootCID, err := h.DAGBuilder.PutNodeAtPath(currentRootCID, path, contentRootCID, contentSize)
+	if err != nil {
+		// This could fail if intermediate path components are files instead of directories, etc.
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to update DAG path '%s': %v", path, err)})
+		return
+	}
+	err = h.Resolver.UpdateMapping(auth, domain, newRootCID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to register/update CID: %v", err)})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"cid": rootCID, "size": size, "name": name})
+	c.JSON(http.StatusOK, gin.H{
+		"domain":              domain,
+		"path":                path,
+		"content_cid":         contentRootCID,
+		"content_size":        contentSize,
+		"new_domain_root_cid": newRootCID,
+	})
 }
