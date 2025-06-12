@@ -47,6 +47,7 @@ func main() {
 	// Initialize API Handlers
 	uploadHandler := api.NewUploadHandler(store, cfg.ChunkSize, resolver, cfg)
 	downloadHandler := api.NewDownloadHandler(store, resolver)
+	registerHandler := api.NewRegisterHandler(cfg, resolver)
 
 	// Setup Gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -70,6 +71,7 @@ func main() {
 	// Define API routes
 	apiGroup := router.Group("/api")
 	{
+		registerHandler.RegisterRoutes(apiGroup)
 		uploadHandler.RegisterRoutes(apiGroup)
 		downloadHandler.RegisterRoutes(apiGroup)
 	}

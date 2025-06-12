@@ -66,8 +66,9 @@ func (h *DownloadHandler) DownloadHandler(c *gin.Context) {
 			return
 		}
 		c.HTML(http.StatusOK, "directory_listing.tmpl", gin.H{
-			"Path":  path,
-			"Links": links,
+			"Path":    path,
+			"Links":   links,
+			"BaseURL": fmt.Sprintf("/%s%s/", domain, path),
 		})
 		return
 	} else {
@@ -114,6 +115,7 @@ func (h *DownloadHandler) DownloadHandler(c *gin.Context) {
 			// Add more types as needed
 		}
 
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 		c.Data(http.StatusOK, contentType, fileData)
 		return
 	}

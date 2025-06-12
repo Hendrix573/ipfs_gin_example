@@ -43,14 +43,14 @@ func LoadConfig() *Config {
 	// Load contract address
 	contractAddress := os.Getenv("CONTRACT_ADDRESS")
 	if contractAddress == "" {
-		contractAddress = "0x26d1824524320000b66c0f6990c4d15b950b2779"
+		contractAddress = "0xaB110Aab1f388b36A45457A3d97e1bA7bddBf21b"
 		log.Println("Warning: CONTRACT_ADDRESS not set, Using default CONTRACT_ADDRESS")
 	}
 
 	// Load private key
 	privateKey := os.Getenv("PRIVATE_KEY")
 	if privateKey == "" {
-		privateKey = "0x49b44de84c2581e367a66f2f6d5b90a3c8f0cfec4153ca2b36b99f7bd916940e"
+		privateKey = "0xdce9fc1b654b7f6c367bab3b2525c47200fed01b3339a8dcdeb060c12d8367f3"
 		log.Println("Warning: PRIVATE_KEY not set, Using default PRIVATE_KEY")
 	}
 

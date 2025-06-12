@@ -85,3 +85,8 @@ func (r *Resolver) UpdateMapping(auth *bind.TransactOpts, domain, cid string) er
 
 	return nil
 }
+
+func (r *Resolver) RegisterDomain(auth *bind.TransactOpts, domain, cid string) error {
+	err := r.contractClient.RegisterName(auth, domain, cid)
+	return err
+}
