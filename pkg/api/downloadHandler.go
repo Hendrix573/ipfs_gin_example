@@ -8,6 +8,7 @@ import (
 	"ipfs-gin-example/pkg/storage"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -16,6 +17,8 @@ type DownloadHandler struct {
 	DAGBuilder *merkledag.DAGBuilder
 	Resolver   *resolver.Resolver
 }
+
+var customCIDRegex = regexp.MustCompile("^[0-9a-fA-F]{64}$")
 
 // NewDownloadHandler creates a new DownloadHandler.
 func NewDownloadHandler(store storage.Store, resolver *resolver.Resolver) *DownloadHandler {
@@ -36,20 +39,36 @@ func (h *DownloadHandler) DownloadHandler(c *gin.Context) {
 	domain := c.Param("domain")
 	path := c.Param("path")
 
-	// check cache
-	targetNodeCID, ok := h.Resolver.GetCache(domain, path)
-	if !ok {
-		rootCID, err := h.Resolver.ResolveDomain(domain)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Failed to resolve CID for %s: %v", domain, err)})
-			return
-		}
+	var rootCID string
+	var targetNodeCID string
 
+	if customCIDRegex.MatchString(domain) {
+		var err error
+		// 解析成功，paramInput 是一个合法的 CID
+		rootCID = domain // 直接将输入的 CID 作为根 CID
 		targetNodeCID, err = h.DAGBuilder.ResolvePath(rootCID, path)
 		if err != nil {
 			// Path not found or other resolution error
 			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Path '%s' not found under CID %s: %v", path, rootCID, err)})
 			return
+		}
+	} else {
+		// check cache
+		var ok bool
+		targetNodeCID, ok = h.Resolver.GetCache(domain, path)
+		if !ok {
+			rootCID, err := h.Resolver.ResolveDomain(domain)
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Failed to resolve CID for %s: %v", domain, err)})
+				return
+			}
+
+			targetNodeCID, err = h.DAGBuilder.ResolvePath(rootCID, path)
+			if err != nil {
+				// Path not found or other resolution error
+				c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Path '%s' not found under CID %s: %v", path, rootCID, err)})
+				return
+			}
 		}
 	}
 

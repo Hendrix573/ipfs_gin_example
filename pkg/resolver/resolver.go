@@ -49,6 +49,7 @@ func (r *Resolver) GetCache(domain string, path string) (string, bool) {
 	// Check cache first
 	if cid, ok := r.cache.Get(name); ok {
 		log.Printf("Cache hit for name %s: %s", name, cid)
+		r.AddCache(domain, path, cid)
 		return cid, true
 	}
 	log.Printf("Cache miss for name %s, querying contract", name)
